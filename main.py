@@ -530,7 +530,7 @@ if uploaded_files:
                             df_processed.to_excel(writer, index=False, sheet_name='Sheet1')
                             worksheet = writer.sheets['Sheet1']
                             auto_adjust_column_width(worksheet)
-                        processed_data_outputs.append((f"{uploaded_file_obj.name}", output_buffer.getvalue()))
+                        processed_data_outputs.append((f"processed_{uploaded_file_obj.name}", output_buffer.getvalue()))
                         processed_files_count += 1
                 except IndexError as e_idx:
                     idx_arg = e_idx.args[0] if e_idx.args else -1
