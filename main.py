@@ -517,11 +517,19 @@ if uploaded_files:
                             if BC_IDX < current_df_shape[1]:
                                 val_bc = "1" if is_vocal else "0";
                                 df_processed.iloc[row_idx, BC_IDX] = val_bc
+                                # MODIFICATION 3: Updated logic for Column BD
                                 if BD_IDX < current_df_shape[1]:
-                                    if val_bc == "1" and match_src_row_for_generic_copy is not None and BD_IDX < len(
-                                            match_src_row_for_generic_copy):
-                                        df_processed.iloc[row_idx, BD_IDX] = match_src_row_for_generic_copy.iloc[BD_IDX]
-                                    elif val_bc == "0":
+                                    if val_bc == "1":  # Vocal track
+                                        # Check for specific stem names
+                                        if fmt_stem_lower == "vocal background" or \
+                                           fmt_stem_lower == "vocals background":
+                                            df_processed.iloc[row_idx, BD_IDX] = "Vocal Textures - Vocal Background"
+                                        # Else, if a source row exists and has BD, copy from it
+                                        elif match_src_row_for_generic_copy is not None and BD_IDX < len(
+                                                match_src_row_for_generic_copy):
+                                            df_processed.iloc[row_idx, BD_IDX] = match_src_row_for_generic_copy.iloc[BD_IDX]
+                                        # If it's vocal, not "Vocal Background", and no source/source BD, BD remains unchanged by this block
+                                    elif val_bc == "0":  # Non-vocal track
                                         df_processed.iloc[row_idx, BD_IDX] = "No Vocal"
 
                     if file_was_modified:
