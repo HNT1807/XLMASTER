@@ -483,7 +483,7 @@ if uploaded_files:
                             if C_IDX < current_df_shape[1]:
                                 p_val = str(df_processed.iloc[row_idx, P_IDX]) if P_IDX < current_df_shape[
                                     1] and pd.notna(df_processed.iloc[row_idx, P_IDX]) else ""
-                                df_processed.iloc[row_idx, C_IDX] = f"{p_val} STEM {fmt_stem}".strip()
+                                df_processed.iloc[row_idx, C_IDX] = f"{p_val} {main_tt_current_row} STEM {fmt_stem}".strip()
                             if E_IDX < current_df_shape[1]:
                                 df_processed.iloc[row_idx, E_IDX] = get_col_E_value_from_filename(str(fn_b))
 
