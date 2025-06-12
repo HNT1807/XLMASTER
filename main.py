@@ -226,43 +226,47 @@ if uploaded_files:
                                     ci not in EXCLUDED_COL_INDICES and ci != TRACK_TITLE_COL_IDX]
 
                     for row_idx, row_s in df_processed.iterrows():
-                        if not (FILENAME_COL_IDX < current_df_shape[1] and TRACK_TITLE_COL_IDX < current_df_shape[
-                            1]): continue
-                        if not (FILENAME_COL_IDX < len(row_s) and TRACK_TITLE_COL_IDX < len(row_s)): continue
+                        if not (FILENAME_COL_IDX < current_df_shape[1]): continue
+                        if not (FILENAME_COL_IDX < len(row_s)): continue
 
-                        fn_b = row_s.iloc[FILENAME_COL_IDX];
-                        tt_r = row_s.iloc[TRACK_TITLE_COL_IDX]
+                        fn_b = row_s.iloc[FILENAME_COL_IDX]
+                        tt_r = row_s.iloc[TRACK_TITLE_COL_IDX] if TRACK_TITLE_COL_IDX < len(row_s) else ""
 
-                        if pd.notna(fn_b) and str(fn_b).strip() and \
-                                (pd.isna(tt_r) or str(tt_r).strip() == ""):
+                        # --- Step 1: Always extract info from filename for every row ---
+                        if not (pd.notna(fn_b) and str(fn_b).strip()):
+                            continue # Skip rows with no filename
 
+                        main_tt_current_row = extract_main_title_from_filename_robust(str(fn_b))
+                        main_tt_current_row = main_tt_current_row.strip() if main_tt_current_row else ""
+                        raw_stem = get_raw_stem_part_from_filename(str(fn_b))
+                        fmt_stem = format_extracted_stem_part(raw_stem)
+                        is_vocal = "vocal" in fmt_stem.lower()
+                        match_src_row_for_generic_copy = None # Reset for each row
+
+                        # --- Step 2: Conditionally fill in MISSING data in Column R and copy other data ---
+                        if main_tt_current_row and (pd.isna(tt_r) or str(tt_r).strip() == ""):
                             file_was_modified = True
-                            main_tt_current_row = extract_main_title_from_filename_robust(str(fn_b))
-                            main_tt_current_row = main_tt_current_row.strip() if main_tt_current_row else ""
-                            match_src_row_for_generic_copy = None
+                            
+                            # A) Fill in the missing track title in Column R
+                            df_processed.iloc[row_idx, TRACK_TITLE_COL_IDX] = main_tt_current_row
+                            
+                            # B) Find a source row to copy data from
+                            if main_tt_current_row in source_title_map_for_generic_copy:
+                                match_src_row_for_generic_copy = source_title_map_for_generic_copy[main_tt_current_row]
+                                for ctc_idx in cols_to_copy:
+                                    if ctc_idx < current_df_shape[1] and ctc_idx < len(match_src_row_for_generic_copy):
+                                        df_processed.iloc[row_idx, ctc_idx] = match_src_row_for_generic_copy.iloc[ctc_idx]
 
-                            if main_tt_current_row:
-                                df_processed.iloc[row_idx, TRACK_TITLE_COL_IDX] = main_tt_current_row
-                                if main_tt_current_row in source_title_map_for_generic_copy:
-                                    match_src_row_for_generic_copy = source_title_map_for_generic_copy[
-                                        main_tt_current_row]
-                                    for ctc_idx in cols_to_copy:
-                                        if ctc_idx < current_df_shape[1] and ctc_idx < len(
-                                                match_src_row_for_generic_copy):
-                                            df_processed.iloc[row_idx, ctc_idx] = match_src_row_for_generic_copy.iloc[
-                                                ctc_idx]
-
-                            if V_IDX < current_df_shape[1] and main_tt_current_row:
+                            # C) Fill Column V
+                            if V_IDX < current_df_shape[1]:
                                 if main_tt_current_row in main_title_to_first_original_track_no_map:
-                                    df_processed.iloc[row_idx, V_IDX] = main_title_to_first_original_track_no_map[
-                                        main_tt_current_row]
+                                    df_processed.iloc[row_idx, V_IDX] = main_title_to_first_original_track_no_map[main_tt_current_row]
 
-                            raw_stem = get_raw_stem_part_from_filename(str(fn_b));
-                            fmt_stem = format_extracted_stem_part(raw_stem)
-                            is_vocal = "vocal" in fmt_stem.lower()
+                        # --- Step 3: Populate columns for ALL STEM rows, outside the conditional block ---
+                        # This section now runs for every row that has a filename.
 
-                            # --- INSTRUMENT MAPPING FOR COLUMN Y ---
-                            # Keywords should be lowercase for case-insensitive matching
+                        # Populate Column Y (Instrumentation)
+                        if Y_IDX < current_df_shape[1]:
                             INSTRUMENT_KEYWORD_MAP = {
                                 "accordion": "Accordion", "alpenhorn": "Alpenhorn/Alpine Horn",
                                 "alpine horn": "Alpenhorn/Alpine Horn",
@@ -436,101 +440,67 @@ if uploaded_files:
                                 "zourna/sorna/zurna": "Zourna/Sorna/Zurna",
                                 "sorna": "Zourna/Sorna/Zurna", "zurna": "Zourna/Sorna/Zurna"
                             }
-                            # To handle cases like "Bass Drum" vs "Bass", we can sort keys by length (descending)
-                            # This ensures longer, more specific keys are checked first.
                             SORTED_INSTRUMENT_KEYWORDS = sorted(INSTRUMENT_KEYWORD_MAP.keys(), key=len, reverse=True)
-
-                            if Y_IDX < current_df_shape[1]:
-                                val_for_Y = ""
-                                # --- DEBUG PRINT START ---
-                                #st.write(
-                                 #   f"DEBUG Y -- Input -- Filename B: {fn_b}, Raw Stem: '{raw_stem}', Formatted Stem: '{fmt_stem}'")
-                                # --- DEBUG PRINT END ---
-                                fmt_stem_lower = fmt_stem.lower() if fmt_stem else ""
-
-                                if fmt_stem_lower:
-                                   # st.write(
-                                      #  f"DEBUG Y: Checking fmt_stem_lower: '{fmt_stem_lower}' against keywords...")
-                                    for keyword in SORTED_INSTRUMENT_KEYWORDS:
-                                        # --- MODIFIED MATCHING LOGIC FOR DEBUGGING ---
-                                        # Try a simple 'in' check first for "percussion"
-                                        if keyword == "percussion":  # Make sure "percussion" is a key in your map
-                                            if keyword in fmt_stem_lower:
-                                                val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
-                                              #  st.write(
-                                                 #   f"DEBUG Y: Matched '{keyword}' with simple 'in' for '{fmt_stem_lower}' -> '{val_for_Y}'")
-                                                break
-                                                # Fallback to regex for others
-                                        elif re.search(r'\b' + re.escape(keyword) + r'\b', fmt_stem_lower):
+                            val_for_Y = ""
+                            fmt_stem_lower = fmt_stem.lower() if fmt_stem else ""
+                            if fmt_stem_lower:
+                                for keyword in SORTED_INSTRUMENT_KEYWORDS:
+                                    if keyword == "percussion":
+                                        if keyword in fmt_stem_lower:
                                             val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
-                                          # st.write(
-                                              #  f"DEBUG Y: Matched '{keyword}' with regex for '{fmt_stem_lower}' -> '{val_for_Y}'")  # Corrected Indentation
                                             break
-                                        # --- END OF MODIFIED MATCHING LOGIC ---
+                                    elif re.search(r'\b' + re.escape(keyword) + r'\b', fmt_stem_lower):
+                                        val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
+                                        break
+                            if val_for_Y:
+                                df_processed.iloc[row_idx, Y_IDX] = val_for_Y
+                        
+                        # Populate other columns for ALL stem rows
+                        if K_IDX < current_df_shape[1]: 
+                            df_processed.iloc[row_idx, K_IDX] = os.path.splitext(str(fn_b))[0]
+                        
+                        if C_IDX < current_df_shape[1]:
+                            p_val = str(df_processed.iloc[row_idx, P_IDX]) if P_IDX < current_df_shape[1] and pd.notna(df_processed.iloc[row_idx, P_IDX]) else ""
+                            df_processed.iloc[row_idx, C_IDX] = f"{p_val} {main_tt_current_row} STEM {fmt_stem}".strip()
+                        
+                        if E_IDX < current_df_shape[1]:
+                            df_processed.iloc[row_idx, E_IDX] = get_col_E_value_from_filename(str(fn_b))
 
-                                # --- DEBUG PRINT IF NO MATCH ---
-                               # if not val_for_Y and fmt_stem_lower:  # Check if still no match after loop
-                                  #  st.write(
-                                     #   f"DEBUG Y: No keyword match found for '{fmt_stem_lower}' after checking all keywords.")
-                                # --- DEBUG PRINT END ---
+                        if S_IDX < current_df_shape[1]: 
+                            df_processed.iloc[row_idx, S_IDX] = f"STEM {fmt_stem}".strip()
+                        
+                        if T_IDX < current_df_shape[1]:
+                            if is_vocal:
+                                val_T = "Submix, Song, Lyrics, Vocals"
+                                if match_src_row_for_generic_copy is not None and T_IDX < len(match_src_row_for_generic_copy):
+                                    source_T_val_original = str(match_src_row_for_generic_copy.iloc[T_IDX])
+                                    modified_T_val = re.sub(r'\bFull\b', 'Submix', source_T_val_original, flags=re.IGNORECASE, count=1)
+                                    if modified_T_val != source_T_val_original:
+                                        val_T = modified_T_val
+                                    elif source_T_val_original.strip():
+                                        val_T = source_T_val_original
+                                df_processed.iloc[row_idx, T_IDX] = val_T
+                            else:
+                                df_processed.iloc[row_idx, T_IDX] = "Submix, No Lyrics, No Vocals"
+                        
+                        if U_IDX < current_df_shape[1]: 
+                            df_processed.iloc[row_idx, U_IDX] = "N"
 
-                                if val_for_Y:
-                                    df_processed.iloc[row_idx, Y_IDX] = val_for_Y
+                        if AI_IDX < current_df_shape[1]:
+                            if is_vocal and match_src_row_for_generic_copy is not None and AI_IDX < len(match_src_row_for_generic_copy):
+                                df_processed.iloc[row_idx, AI_IDX] = match_src_row_for_generic_copy.iloc[AI_IDX]
 
-
-                            if K_IDX < current_df_shape[1]: df_processed.iloc[row_idx, K_IDX] = \
-                            os.path.splitext(str(fn_b))[0]
-                            if C_IDX < current_df_shape[1]:
-                                p_val = str(df_processed.iloc[row_idx, P_IDX]) if P_IDX < current_df_shape[
-                                    1] and pd.notna(df_processed.iloc[row_idx, P_IDX]) else ""
-                                df_processed.iloc[row_idx, C_IDX] = f"{p_val} {main_tt_current_row} STEM {fmt_stem}".strip()
-                            if E_IDX < current_df_shape[1]:
-                                df_processed.iloc[row_idx, E_IDX] = get_col_E_value_from_filename(str(fn_b))
-
-                            if S_IDX < current_df_shape[1]: df_processed.iloc[
-                                row_idx, S_IDX] = f"STEM {fmt_stem}".strip()
-                            if T_IDX < current_df_shape[1]:
-                                if is_vocal:
-                                    val_T = "Submix, Song, Lyrics, Vocals"
-                                    if match_src_row_for_generic_copy is not None and T_IDX < len(
-                                            match_src_row_for_generic_copy):
-                                        source_T_val_original = str(match_src_row_for_generic_copy.iloc[T_IDX])
-                                        modified_T_val = re.sub(r'\bFull\b', 'Submix', source_T_val_original,
-                                                                flags=re.IGNORECASE, count=1)
-                                        if modified_T_val != source_T_val_original:
-                                            val_T = modified_T_val
-                                        elif source_T_val_original.strip():
-                                            val_T = source_T_val_original
-                                    df_processed.iloc[row_idx, T_IDX] = val_T
-                                else:
-                                    df_processed.iloc[row_idx, T_IDX] = "Submix, No Lyrics, No Vocals"
-                            if U_IDX < current_df_shape[1]: df_processed.iloc[row_idx, U_IDX] = "N"
-
-                            # CORRECTED Rule for Column AI (Lyrics)
-                            if AI_IDX < current_df_shape[1]:  # Ensure AI column exists in target
-                                if is_vocal and match_src_row_for_generic_copy is not None and \
-                                        AI_IDX < len(match_src_row_for_generic_copy):  # Check AI in source
-                                    # Copy the value from Column AI of the matched source row
-                                    df_processed.iloc[row_idx, AI_IDX] = match_src_row_for_generic_copy.iloc[AI_IDX]
-
-
-                            if BC_IDX < current_df_shape[1]:
-                                val_bc = "1" if is_vocal else "0";
-                                df_processed.iloc[row_idx, BC_IDX] = val_bc
-                                # MODIFICATION 3: Updated logic for Column BD
-                                if BD_IDX < current_df_shape[1]:
-                                    if val_bc == "1":  # Vocal track
-                                        # Check for specific stem names
-                                        if fmt_stem_lower == "vocal background" or \
-                                           fmt_stem_lower == "vocals background":
-                                            df_processed.iloc[row_idx, BD_IDX] = "Vocal Textures - Vocal Background"
-                                        # Else, if a source row exists and has BD, copy from it
-                                        elif match_src_row_for_generic_copy is not None and BD_IDX < len(
-                                                match_src_row_for_generic_copy):
-                                            df_processed.iloc[row_idx, BD_IDX] = match_src_row_for_generic_copy.iloc[BD_IDX]
-                                        # If it's vocal, not "Vocal Background", and no source/source BD, BD remains unchanged by this block
-                                    elif val_bc == "0":  # Non-vocal track
-                                        df_processed.iloc[row_idx, BD_IDX] = "No Vocal"
+                        if BC_IDX < current_df_shape[1]:
+                            val_bc = "1" if is_vocal else "0"
+                            df_processed.iloc[row_idx, BC_IDX] = val_bc
+                            if BD_IDX < current_df_shape[1]:
+                                if val_bc == "1":
+                                    if fmt_stem_lower == "vocal background" or fmt_stem_lower == "vocals background":
+                                        df_processed.iloc[row_idx, BD_IDX] = "Vocal Textures - Vocal Background"
+                                    elif match_src_row_for_generic_copy is not None and BD_IDX < len(match_src_row_for_generic_copy):
+                                        df_processed.iloc[row_idx, BD_IDX] = match_src_row_for_generic_copy.iloc[BD_IDX]
+                                elif val_bc == "0":
+                                    df_processed.iloc[row_idx, BD_IDX] = "No Vocal"
 
                     if file_was_modified:
                         output_buffer = io.BytesIO()
