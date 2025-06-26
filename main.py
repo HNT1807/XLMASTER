@@ -262,8 +262,10 @@ if uploaded_files:
                                 if main_tt_current_row in main_title_to_first_original_track_no_map:
                                     df_processed.iloc[row_idx, V_IDX] = main_title_to_first_original_track_no_map[main_tt_current_row]
 
-                        # --- Step 3: Populate columns for ALL STEM rows, outside the conditional block ---
-                        # This section now runs for every row that has a filename.
+                        # --- Step 3: Populate columns for STEM rows
+                        # This section should only run for STEM rows.
+                        if raw_stem is None:
+                            continue
 
                         # Populate Column Y (Instrumentation)
                         if Y_IDX < current_df_shape[1]:
@@ -449,13 +451,13 @@ if uploaded_files:
                                         if keyword in fmt_stem_lower:
                                             val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
                                             break
-                                    elif re.search(r'\b' + re.escape(keyword) + r'\b', fmt_stem_lower):
+                                    elif re.search(r'\\b' + re.escape(keyword) + r'\\b', fmt_stem_lower):
                                         val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
                                         break
                             if val_for_Y:
                                 df_processed.iloc[row_idx, Y_IDX] = val_for_Y
                         
-                        # Populate other columns for ALL stem rows
+                        # Populate other columns for STEM rows
                         if K_IDX < current_df_shape[1]: 
                             df_processed.iloc[row_idx, K_IDX] = os.path.splitext(str(fn_b))[0]
                         
@@ -474,7 +476,7 @@ if uploaded_files:
                                 val_T = "Submix, Song, Lyrics, Vocals"
                                 if match_src_row_for_generic_copy is not None and T_IDX < len(match_src_row_for_generic_copy):
                                     source_T_val_original = str(match_src_row_for_generic_copy.iloc[T_IDX])
-                                    modified_T_val = re.sub(r'\bFull\b', 'Submix', source_T_val_original, flags=re.IGNORECASE, count=1)
+                                    modified_T_val = re.sub(r'\\bFull\\b', 'Submix', source_T_val_original, flags=re.IGNORECASE, count=1)
                                     if modified_T_val != source_T_val_original:
                                         val_T = modified_T_val
                                     elif source_T_val_original.strip():
