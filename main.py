@@ -120,6 +120,12 @@ def get_col_E_value_from_filename(fn_str):
     return ""
 
 
+def format_track_number(track_no_str, num_digits):
+    if not track_no_str or not track_no_str.isdigit() or num_digits is None:
+        return track_no_str
+    return track_no_str.zfill(num_digits)
+
+
 def auto_adjust_column_width(worksheet):
     for col in worksheet.columns:
         max_length = 0;
@@ -204,6 +210,7 @@ if uploaded_files:
 
                     source_title_map_for_generic_copy = {}
                     main_title_to_first_original_track_no_map = {}
+                    track_number_num_digits = None
 
                     for _, row_map_data in df_original.iterrows():
                         if TRACK_TITLE_COL_IDX < current_df_shape[1] and pd.notna(
@@ -221,6 +228,8 @@ if uploaded_files:
                                 original_track_no = get_track_number_from_filename(filename_for_map)
                                 if original_track_no:
                                     main_title_to_first_original_track_no_map[main_title_for_map] = original_track_no
+                                    if track_number_num_digits is None and "_STEM" in filename_for_map:
+                                        track_number_num_digits = len(original_track_no)
 
                     cols_to_copy = [ci for ci in range(df_processed.shape[1]) if
                                     ci not in EXCLUDED_COL_INDICES and ci != TRACK_TITLE_COL_IDX]
@@ -260,7 +269,9 @@ if uploaded_files:
                             # C) Fill Column V
                             if V_IDX < current_df_shape[1]:
                                 if main_tt_current_row in main_title_to_first_original_track_no_map:
-                                    df_processed.iloc[row_idx, V_IDX] = main_title_to_first_original_track_no_map[main_tt_current_row]
+                                    track_no_to_format = main_title_to_first_original_track_no_map[main_tt_current_row]
+                                    formatted_track_no = format_track_number(track_no_to_format, track_number_num_digits)
+                                    df_processed.iloc[row_idx, V_IDX] = formatted_track_no
 
                         # --- Step 3: Populate columns for STEM rows
                         # This section should only run for STEM rows.
@@ -451,7 +462,7 @@ if uploaded_files:
                                         if keyword in fmt_stem_lower:
                                             val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
                                             break
-                                    elif re.search(r'\\b' + re.escape(keyword) + r'\\b', fmt_stem_lower):
+                                    elif re.search(r'\b' + re.escape(keyword) + r'\b', fmt_stem_lower):
                                         val_for_Y = INSTRUMENT_KEYWORD_MAP[keyword]
                                         break
                             if val_for_Y:
@@ -476,9 +487,8 @@ if uploaded_files:
                                 val_T = "Submix, Song, Lyrics, Vocals"
                                 if match_src_row_for_generic_copy is not None and T_IDX < len(match_src_row_for_generic_copy):
                                     source_T_val_original = str(match_src_row_for_generic_copy.iloc[T_IDX])
-                                    modified_T_val = re.sub(r'\\bFull\\b', 'Submix', source_T_val_original, flags=re.IGNORECASE, count=1)
-                                    if modified_T_val != source_T_val_original:
-                                        val_T = modified_T_val
+                                    if 'Full' in source_T_val_original:
+                                        val_T = source_T_val_original.replace('Full', 'Submix', 1)
                                     elif source_T_val_original.strip():
                                         val_T = source_T_val_original
                                 df_processed.iloc[row_idx, T_IDX] = val_T
