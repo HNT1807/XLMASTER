@@ -267,6 +267,9 @@ if uploaded_files:
                         if get_raw_stem_part_from_filename(str(fn_b)) is None:
                             continue
 
+                        # Mark file as modified when processing STEM rows
+                        file_was_modified = True
+
                         # Populate Column Y (Instrumentation)
                         if Y_IDX < current_df_shape[1]:
                             INSTRUMENT_KEYWORD_MAP = {
